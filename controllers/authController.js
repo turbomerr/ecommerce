@@ -23,7 +23,7 @@ export const signup = async (req, res) => {
         const newUser = await User.create({
             fullname,
             email,
-            password
+            password,
         })
         const token = generateJWT(newUser._id);
         newUser.verifyToken = token;
@@ -65,28 +65,35 @@ export const login = async (req, res) => {
             return res.status(400).json({message : "Inputs must be completed"})
         }
 
-        const existUser = await User.findOne({email}).select("-password")
+        const existUser = await User.findOne({email})
 
         if(!existUser){
             return res.status(404).json({message : "User not found"})
         }
 
-        const isMatched = existUser.comparePassword(password)
+        if(!existUser.verified){
+            return res.status(400).json({message : "User is not verified"})
+        }
+
+        
+
+        const isMatched = await existUser.comparePassword(password)
         if(!isMatched){
             return res.status(400).json({message : "Password not match, please try again!"})
         }
 
-        const token = generateJWT({userId : existUser.id})
-        console.log("Token for user", token)
-
-        res.cookie("token", token, {
-            httpOnly : true,
-            sameSite : "strict",
-            maxAge: 60 * 60 * 1000,
-        })
+        const token = generateJWT(existUser.id)
         
 
-        return res.status(200).json({message : "User loggedin successfully", data : existUser})
+        // res.cookie("token", token, {
+        //     httpOnly : true,
+        //     sameSite : "strict",
+        //     secure: process.env.NODE_ENV === "production",
+        //     maxAge: 60 * 60 * 1000,
+        // })
+        
+
+        return res.status(200).json({message : "User loggedin successfully", data : existUser, token})
         
         
     } catch (error) {
@@ -106,6 +113,17 @@ export const logout = async (req, res) => {
 
 export const profile = async (req, res) => {
 
+    try {
+        const user = await User.findById(req.userId).select("-password");
+        
+
+        if (!user) return res.status(404).json({ message: "User not found" });
+
+        res.status(200).json({ message: "Profile fetched successfully", data : user });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ message: "Profile Error"});
+    }
    
 
 }
@@ -119,6 +137,10 @@ export const verify = async (req, res) => {
         }).select("-password")
 
         if (!verifiedUser) return res.status(400).json({ message: "Invalid or expired token" })
+
+        if(verifiedUser.email === process.env.ADMIN_EMAIL){
+            verifiedUser.role = "admin"
+        }
 
         verifiedUser.verified = true;
         verifiedUser.verifyToken = undefined;
