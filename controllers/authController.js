@@ -1,12 +1,11 @@
 import { User } from "../models/user.model.js";
 import { Resend } from "resend";
 import dotenv from "dotenv"
-import { generateJWT } from "../utils/generateToken.js"
+import { generateJWT, verifyToken } from "../utils/generateToken.js"
 
 dotenv.config()
 
 const resend = new Resend(process.env.RESEND_KEY);
-
 
 export const signup = async (req, res) => {
     const { fullname, email, password } = req.body;
@@ -17,7 +16,7 @@ export const signup = async (req, res) => {
             
         }
 
-        const existUser = await User.findOne({ email });
+        const existUser = await User.findOne({ email }).select("-password");
         if (existUser) {
             return res.status(400).json({ message: "Email already exist" })
         }
@@ -34,7 +33,7 @@ export const signup = async (req, res) => {
 
         const verifyUrl = `http://localhost:4000/api/auth/verify/${token}`;
 
-        const {error} = await resend.emails.send({
+        const {data, error} = await resend.emails.send({
             from: "Acme <onboarding@resend.dev>",
             to: email,
             subject: "Verify your account",
@@ -59,6 +58,42 @@ export const signup = async (req, res) => {
 
 export const login = async (req, res) => {
 
+    const {email, password} = req.body;
+
+    try {
+        if(!email || !password) {
+            return res.status(400).json({message : "Inputs must be completed"})
+        }
+
+        const existUser = await User.findOne({email}).select("-password")
+
+        if(!existUser){
+            return res.status(404).json({message : "User not found"})
+        }
+
+        const isMatched = existUser.comparePassword(password)
+        if(!isMatched){
+            return res.status(400).json({message : "Password not match, please try again!"})
+        }
+
+        const token = generateJWT({userId : existUser.id})
+        console.log("Token for user", token)
+
+        res.cookie("token", token, {
+            httpOnly : true,
+            sameSite : "strict",
+            maxAge: 60 * 60 * 1000,
+        })
+        
+
+        return res.status(200).json({message : "User loggedin successfully", data : existUser})
+        
+        
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: "Login failed" });
+    }
+
 
 }
 
@@ -71,6 +106,7 @@ export const logout = async (req, res) => {
 
 export const profile = async (req, res) => {
 
+   
 
 }
 export const verify = async (req, res) => {
@@ -80,7 +116,7 @@ export const verify = async (req, res) => {
         const verifiedUser = await User.findOne({
             verifyToken: token,
             verifyTokenExpire: { $gt: Date.now() } //greater than now 
-        })
+        }).select("-password")
 
         if (!verifiedUser) return res.status(400).json({ message: "Invalid or expired token" })
 
@@ -97,10 +133,10 @@ export const verify = async (req, res) => {
             subject: "Your Email Verified",
             html: `<h2>Welcome, ${verifiedUser.fullname}!</h2>`
         })
-        res.json({ message: "Email verified successfully" });
+        res.json({ message: "Email verified successfully", user : verifiedUser});
 
     } catch (error) {
         console.error(error);
-        res.status(500).json({ message: "Email verification failed" });
+        res.status(500).json({ message: "Email verification failed"});
     }
 }
