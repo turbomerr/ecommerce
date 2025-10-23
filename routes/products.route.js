@@ -1,10 +1,13 @@
 import express from "express"
-import {adminCheck, createProduct} from "../controllers/products.controller.js"
+import {adminCheck, createProduct, getAllProduct, getProductById, updateProduct} from "../controllers/products.controller.js"
 import { verifyToken } from "../utils/generateToken.js";
 
 const router = express.Router();
 
-router.get("/create", verifyToken, adminCheck, createProduct)
+router.post("/create", verifyToken, adminCheck, createProduct)
+router.get("/", getAllProduct)
+router.get("/:id", getProductById)
+router.patch("/:id", verifyToken, adminCheck, updateProduct)
 
 
 

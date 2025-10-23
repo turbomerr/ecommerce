@@ -3,6 +3,7 @@ import express from "express"
 import helmet from "helmet"
 import { connectDB } from "./db/connectDB.js";
 import authRouter from "./routes/auth.route.js";
+import productsRouter from "./routes/products.route.js"
 
 const app = express();
 app.use(helmet({contentSecurityPolicy : false }))
@@ -11,7 +12,7 @@ app.use(express.json())
 
 
 app.use("/api/auth", authRouter) //register login profile
-// app.use("/api/products") //
+app.use("/api/products", productsRouter)
 // app.use("/api/cart")
 // app.use("/api/orders")
 // app.use("/api/payments")
